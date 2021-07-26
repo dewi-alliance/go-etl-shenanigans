@@ -40,7 +40,7 @@ type Validator struct {
 	IP      string `json:"ip"`
 }
 
-func getAllValidatorsData() []Validator {
+func updateValidatorGeoData() {
 
 	var address, listen_addrs sql.NullString
 

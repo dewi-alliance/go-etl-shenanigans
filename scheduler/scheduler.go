@@ -15,6 +15,7 @@ func Start() {
 
 	// Slowly pulls geo data from helium api and inserts into the database
 	go updateGetLocations()
+	go updateValidatorGeoData()
 }
 
 // Helper functions
