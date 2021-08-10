@@ -3,19 +3,49 @@ package scheduler
 import (
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 
 	"dewietl/database"
+
+	"github.com/robfig/cron/v3"
 )
 
+// Create new cron
+var scheduleCron = cron.New()
+
 func Start() {
+
+	REBUILD := flag.Bool("rebuild", false, "Rebuild the hotspot cache")
+
+	flag.Parse()
+
+	if *REBUILD == true {
+		log.Println("Rebuilding cache!")
+		go buildRewardCache()
+	}
 
 	// Slowly pulls geo data from helium api and inserts into the database
 	go updateGetLocations()
 	go updateValidatorGeoData()
+}
+
+func runScheduler(c *cron.Cron) {
+
+	// Run yesterday job every day at midnight
+	_, err := scheduleCron.AddFunc("0 0 * * *", func() {
+		buildYesterdayCache()
+	})
+
+	if err != nil {
+		log.Println(err)
+	}
+
+	// Start all cronjobs
+	scheduleCron.Start()
 }
 
 // Helper functions

@@ -57,6 +57,7 @@ func updateValidatorGeoData() {
 		}
 
 		if address.Valid == true && listen_addrs.Valid == true {
+
 			validatorIP := getValidatorIP(listen_addrs.String)
 
 			geoInformation := getGeoData(validatorIP)
@@ -66,17 +67,17 @@ func updateValidatorGeoData() {
 				fmt.Println(err)
 			}
 
-			initialString := "INSERT INTO validator_isp (address, isp, geo_data) VALUES "
-			queryString := fmt.Sprintf(" ('%v', '%v', '%v') ", address, geoInformation.ISP, string(geoString))
-			finalString := " ON CONFLICT (validator_isp) DO UPDATE SET address = excluded.address, isp = excluded.isp, geo_data = excluded.geo_data"
+			initialString := "INSERT INTO validator_isp (address, isp, geo_data, host, ip, rdns, asn, country_name, country_code, region_name, region_code, city, postal_code, continent_name, continent_code, latitude, longitude, metro_code, timezone, datetime) VALUES "
+			queryString := fmt.Sprintf(" ('%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v', '%v') ", address.String, geoInformation.ISP, string(geoString), geoInformation.Host, geoInformation.IP, geoInformation.RDNS, geoInformation.ASN, geoInformation.CountryName, geoInformation.CountryCode, geoInformation.RegionName, geoInformation.RegionCode, geoInformation.City, geoInformation.PostalCode, geoInformation.ContinentName, geoInformation.ContinentCode, geoInformation.Latitude, geoInformation.Longitude, geoInformation.Metro_code, geoInformation.Timezone, geoInformation.Datetime)
+			finalString := " ON CONFLICT (address) DO UPDATE SET address = excluded.address, isp = excluded.isp, geo_data = excluded.geo_data, host = excluded.host, ip = excluded.ip, rdns = excluded.rdns, asn = excluded.asn, country_name = excluded.country_name, country_code = excluded.country_code, region_name = excluded.region_name, region_code = excluded.region_code, city = excluded.city, postal_code = excluded.postal_code, continent_name = excluded.continent_name, continent_code = excluded.continent_code, latitude = excluded.latitude, longitude = excluded.longitude, metro_code = excluded.metro_code, timezone = excluded.timezone, datetime = excluded.datetime"
 			totalString := initialString + queryString + finalString
 
 			_, err = database.DB.Exec(totalString)
 			if err != nil {
-				log.Printf("[ERROR] adding new validator geo data()")
+				log.Printf("[ERROR] adding new validator geodata: %v", err)
 			}
 
-			log.Println("Validator %v / %v - ISP: %v", address, validatorIP, geoInformation.ISP)
+			log.Printf("Validator %v / %v - ISP: %v", address.String, validatorIP, geoInformation.ISP)
 
 		}
 
