@@ -52,10 +52,12 @@ func buildRewardCache() {
 						rewardString := strconv.Itoa(reward)
 						dayParsedString := strconv.Itoa(int(dayTimestamp))
 
-						query := `INSERT INTO rewards_by_day (address, date, amount) 
-								  SELECT '` + h + `', '` + dayParsedString + `', ` + rewardString + `
-								  WHERE NOT EXISTS (
-								  SELECT 1 FROM rewards_by_day WHERE address='` + h + `' AND date='` + dayParsedString + `' AND amount=` + rewardString + `);`
+						query := `INSERT INTO rewards_by_day (address, date, amount) VALUES ('` + h + `', '` + dayParsedString + `', '` + rewardString + `')`
+
+						// query := `INSERT INTO rewards_by_day (address, date, amount)
+						// 		  SELECT '` + h + `', '` + dayParsedString + `', ` + rewardString + `
+						// 		  WHERE NOT EXISTS (
+						// 		  SELECT 1 FROM rewards_by_day WHERE address='` + h + `' AND date='` + dayParsedString + `' AND amount=` + rewardString + `);`
 
 						_, err := database.DB.Exec(query)
 						if err != nil {
@@ -85,55 +87,17 @@ func buildYesterdayCache() {
 
 		currentHotspot++
 
-		hotspotRewards := getYesterdayRewards(h)
+		day, reward := getYesterdayRewards(h)
 
-		// if hotspot has rewards
-		if len(hotspotRewards) > 0 {
-
-			for day, reward := range hotspotRewards {
-
-				rewardString := strconv.Itoa(reward)
-
-				query := `INSERT INTO rewards_by_day (address, date, amount) 
-				SELECT '` + h + `', '` + day + `', ` + rewardString + `
-				WHERE NOT EXISTS (
-				SELECT 1 FROM rewards_by_day WHERE address='` + h + `' AND date='` + day + `' AND amount=` + rewardString + `);`
-
-				_, err := database.DB.Exec(query)
-				if err != nil {
-					// log.Printf("\n\n\n %v", totalQuery)
-					log.Printf("[ERROR] error when inserting daily rewards: %v", err)
-				}
-
-			}
+		query := `INSERT INTO rewards_by_day (address, date, amount) VALUES ('` + h + `', '` + day + `', '` + reward + `')`
+		_, err := database.DB.Exec(query)
+		if err != nil {
+			log.Printf("[ERROR] error when inserting daily rewards: %v", err)
 		}
 
-		log.Printf("%v/%v Added yesterday rewards for %v", currentHotspot, totalHotspots, h)
-		time.Sleep(time.Millisecond * 10)
+		log.Printf("%v/%v Added yesterday rewards for %v total -> %v", currentHotspot, totalHotspots, h, reward)
 	}
 
-}
-
-func getYesterdayRewards(hash string) map[string]int {
-
-	// Get beginning of the day timestamp
-	year, month, day := time.Now().Date()
-	beginningOfDayTimestamp := time.Date(year, month, day-1, 0, 0, 0, 0, time.UTC).Unix()
-	endOfDayTimestamp := time.Date(year, month, day-1, 23, 59, 59, 0, time.UTC).Unix()
-
-	var amount sql.NullInt64
-	rewards := make(map[string]int, 0)
-
-	row := database.DB.QueryRow("SELECT sum(amount) FROM rewards WHERE gateway = $1 AND time >= $2 AND time <= $3", hash, beginningOfDayTimestamp, endOfDayTimestamp)
-	err := row.Scan(&amount)
-
-	if err != nil {
-		log.Printf("[ERROR]d error: %v ", err)
-	}
-
-	dayString := fmt.Sprintf("%v", beginningOfDayTimestamp)
-	rewards[dayString] = int(amount.Int64)
-	return rewards
 }
 
 func getHostpotRewards(hash string) map[string]int {
@@ -166,4 +130,25 @@ func getHostpotRewards(hash string) map[string]int {
 	}
 
 	return rewards
+}
+
+func getYesterdayRewards(hash string) (string, string) {
+
+	// Get beginning of the day timestamp
+	year, month, day := time.Now().Date()
+	beginningOfDayTimestamp := time.Date(year, month, day-1, 0, 0, 0, 0, time.UTC).Unix()
+	endOfDayTimestamp := time.Date(year, month, day-1, 23, 59, 59, 0, time.UTC).Unix()
+
+	var amount sql.NullInt64
+
+	row := database.DB.QueryRow("SELECT sum(amount) FROM rewards WHERE gateway = $1 AND time >= $2 AND time <= $3", hash, beginningOfDayTimestamp, endOfDayTimestamp)
+	err := row.Scan(&amount)
+
+	if err != nil {
+		log.Printf("[ERROR]d error: %v ", err)
+	}
+
+	dayString := fmt.Sprintf("%v", beginningOfDayTimestamp)
+	rewards := fmt.Sprintf("%v", amount.Int64)
+	return dayString, rewards
 }
