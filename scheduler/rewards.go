@@ -54,11 +54,6 @@ func buildRewardCache() {
 
 						query := `INSERT INTO rewards_by_day (address, date, amount) VALUES ('` + h + `', '` + dayParsedString + `', '` + rewardString + `')`
 
-						// query := `INSERT INTO rewards_by_day (address, date, amount)
-						// 		  SELECT '` + h + `', '` + dayParsedString + `', ` + rewardString + `
-						// 		  WHERE NOT EXISTS (
-						// 		  SELECT 1 FROM rewards_by_day WHERE address='` + h + `' AND date='` + dayParsedString + `' AND amount=` + rewardString + `);`
-
 						_, err := database.DB.Exec(query)
 						if err != nil {
 							// log.Printf("\n\n\n %v", totalQuery)

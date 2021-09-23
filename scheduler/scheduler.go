@@ -29,9 +29,12 @@ func Start() {
 	}
 
 	// Slowly pulls geo data from helium api and inserts into the database
-	go updateGetLocations()
+	// go updateGetLocations() // Removed by adding the Google API KEY
 	go updateValidatorGeoData()
 	go updateMakersData()
+
+	// Midnight build reward cache
+	runScheduler(scheduleCron)
 
 }
 
