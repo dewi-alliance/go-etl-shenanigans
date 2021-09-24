@@ -16,10 +16,12 @@ import (
 
 // Create new cron
 var scheduleCron = cron.New()
+var DEV *bool
 
 func Start() {
 
 	REBUILD := flag.Bool("rebuild", false, "Rebuild the hotspot cache")
+	DEV = flag.Bool("dev", false, "Run in development mode")
 
 	flag.Parse()
 

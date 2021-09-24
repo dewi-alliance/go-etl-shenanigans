@@ -2,8 +2,12 @@ package main
 
 import (
 	"dewietl/database"
+	"dewietl/handler"
 	"dewietl/scheduler"
-	"time"
+	"net/http"
+
+	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
 )
 
 func main() {
@@ -14,7 +18,21 @@ func main() {
 	// Start scheduler
 	scheduler.Start()
 
-	for {
-		time.Sleep(time.Second)
+	e := echo.New()
+	e.Pre(middleware.AddTrailingSlash())
+
+	e.GET("/", func(c echo.Context) error {
+		return c.String(http.StatusOK, "Hello from DeWi!")
+	})
+
+	e.GET("/location/hex/:hash/", handler.GetLocationAddress)
+	e.GET("/location/hotspot/:hash/", handler.GetLocationHotspot)
+
+	// Get parameter to know if running on dev or production
+	serverPort := ":1323"
+	if *scheduler.DEV {
+		serverPort = ":8081"
 	}
+
+	e.Logger.Fatal(e.Start(serverPort))
 }

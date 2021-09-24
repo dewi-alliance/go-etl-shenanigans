@@ -5,7 +5,9 @@ import (
 	"dewietl/database"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -22,7 +24,6 @@ func buildRewardCache() {
 		currentHotspot++
 
 		hotspotRewards := getHostpotRewards(h)
-
 		// Only insert if hotspot has rewards
 		// Do not save the current day
 
@@ -37,11 +38,21 @@ func buildRewardCache() {
 			// disable hotspots with only today as date
 			if total > 1 {
 
+				// Sort days
+				keys := make([]string, 0, len(hotspotRewards))
+				for k := range hotspotRewards {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+
+				// // Fill the map
+
 				i = 0
-				for day, reward := range hotspotRewards {
+				for _, k := range keys {
+					// for day, reward := range hotspotRewards {
 					i++
 					total--
-					dayString := day[:10]
+					dayString := k[:10]
 
 					// avoid adding current day
 					if dayString != todayDate {
@@ -49,14 +60,13 @@ func buildRewardCache() {
 						dayParsed, _ := time.Parse("2006-01-02", dayString)
 						dayTimestamp := dayParsed.Unix()
 
-						rewardString := strconv.Itoa(reward)
+						rewardString := strconv.Itoa(hotspotRewards[k])
 						dayParsedString := strconv.Itoa(int(dayTimestamp))
 
 						query := `INSERT INTO rewards_by_day (address, date, amount) VALUES ('` + h + `', '` + dayParsedString + `', '` + rewardString + `')`
 
 						_, err := database.DB.Exec(query)
 						if err != nil {
-							// log.Printf("\n\n\n %v", totalQuery)
 							log.Printf("[ERROR] error when inserting daily rewards: %v", err)
 						}
 					}
@@ -97,8 +107,17 @@ func buildYesterdayCache() {
 
 func getHostpotRewards(hash string) map[string]int {
 
+	type Reward struct {
+		Day    string `json:"day"`
+		Reward int    `json:"reward"`
+	}
+
+	rewardList := make([]Reward, 0)
+
 	var amount, timestamp sql.NullInt64
 	rewards := make(map[string]int, 0)
+	rewardsSorted := make(map[string]int, 0)
+	finalList := make(map[string]int, 0)
 
 	rows, err := database.DB.Query("SELECT amount, time FROM rewards WHERE gateway = $1 ORDER BY time", hash)
 	if err != nil {
@@ -107,10 +126,12 @@ func getHostpotRewards(hash string) map[string]int {
 
 	defer rows.Close()
 
+	j := 0
 	for rows.Next() {
+		j++
 		err := rows.Scan(&amount, &timestamp)
 		if err != nil {
-			log.Printf("[ERROR]: %v", err)
+			log.Printf("[ERROR] getAllHotspotsAssertions(): %v", err)
 		}
 
 		// get the date
@@ -123,8 +144,47 @@ func getHostpotRewards(hash string) map[string]int {
 			rewards[dateTime] = int(amount.Int64)
 		}
 	}
+	rows.Close()
 
-	return rewards
+	if j > 0 {
+
+		// Sort days
+		keys := make([]string, 0, len(rewards))
+		for k := range rewards {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		// Fill the map
+		for _, k := range keys {
+			day := strings.TrimSpace(k)
+			rewardsSorted[day] = rewards[k]
+			rewardList = append(rewardList, Reward{day, rewards[k]})
+		}
+
+		const layout = "2006-01-02"
+
+		firstDay := ""
+		for i, value := range rewardList {
+			if i == 0 {
+				firstDay = value.Day
+			}
+		}
+
+		// Build all days
+		firstDayTM, _ := time.Parse(layout, firstDay)
+		lastDayTM := time.Now().AddDate(0, 0, -1)
+		totalDays := lastDayTM.Sub(firstDayTM).Hours() / 24
+
+		for i := 0; i <= int(totalDays); i++ {
+			day := firstDayTM.AddDate(0, 0, i).Format(layout)
+			finalList[day] = rewardsSorted[day]
+
+		}
+
+	}
+
+	return finalList
 }
 
 func getYesterdayRewards(hash string) (string, string) {
