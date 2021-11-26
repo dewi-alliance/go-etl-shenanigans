@@ -195,7 +195,6 @@ func getYesterdayRewards(hash string) (string, string) {
 	endOfDayTimestamp := time.Date(year, month, day-1, 23, 59, 59, 0, time.UTC).Unix()
 
 	var amount sql.NullInt64
-
 	row := database.DB.QueryRow("SELECT sum(amount) FROM rewards WHERE gateway = $1 AND time >= $2 AND time <= $3", hash, beginningOfDayTimestamp, endOfDayTimestamp)
 	err := row.Scan(&amount)
 

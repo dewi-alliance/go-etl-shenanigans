@@ -60,9 +60,27 @@ func GetLocationHotspot(c echo.Context) error {
 
 	var location, long_street, short_street, long_city, short_city, long_state, short_state, long_country, short_country, search_city, city_id sql.NullString
 
-	err := database.DB.QueryRow(`SELECT locations.location, locations.long_street, locations.short_street, locations.long_city, locations.short_city, locations.long_state, locations.short_state, locations.long_country, locations.short_country, locations.search_city, locations.city_id  FROM locations INNER JOIN gateway_inventory ON gateway_inventory.location = locations.location WHERE gateway_inventory.address = $1`, hash).Scan(&location, &long_street, &short_street, &long_city, &short_city, &long_state, &short_state, &long_country, &short_country, &search_city, &city_id)
+	query := `SELECT
+		lo.location, 
+		long_street, 
+		short_street, 
+		long_city, 
+		short_city, 
+		long_state, 
+		short_state, 
+		long_country, 
+		short_country, 
+		search_city, 
+		city_id
+		FROM
+		locations lo
+		INNER JOIN gateway_inventory gi 
+		ON gi.location = lo.location
+		WHERE  gi.address = '` + hash + `'`
+
+	err := database.DB.QueryRow(query).Scan(&location, &long_street, &short_street, &long_city, &short_city, &long_state, &short_state, &long_country, &short_country, &search_city, &city_id)
 	if err != nil {
-		log.Printf("[ERROR] GetLocationHotspot(): %v", err)
+		// log.Printf("[ERROR] GetLocationHotspot(): %v - %v", err, hash)
 	}
 
 	address := Address{location.String, long_street.String, short_street.String, long_city.String, short_city.String, long_state.String, short_state.String, long_country.String, short_country.String, search_city.String, city_id.String}
