@@ -109,7 +109,7 @@ func getGeoData(ip string) ValidatorGeoData {
 
 	body, readErr := ioutil.ReadAll(resp.Body)
 	if readErr != nil {
-		log.Fatal(readErr)
+		log.Println(readErr)
 	}
 
 	var geo ValidatorGeoData
