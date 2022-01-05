@@ -24,8 +24,8 @@ func buildRewardCache() {
 		currentHotspot++
 
 		hotspotRewards := getHostpotRewards(h)
+
 		// Only insert if hotspot has rewards
-		// Do not save the current day
 
 		todayDate := fmt.Sprintf("%v", time.Now().Format("2006-01-02"))
 
@@ -45,7 +45,7 @@ func buildRewardCache() {
 				}
 				sort.Strings(keys)
 
-				// // Fill the map
+				// Fill the map
 
 				i = 0
 				for _, k := range keys {
@@ -63,8 +63,10 @@ func buildRewardCache() {
 						rewardString := strconv.Itoa(hotspotRewards[k])
 						dayParsedString := strconv.Itoa(int(dayTimestamp))
 
-						query := `INSERT INTO rewards_by_day (address, date, amount) VALUES ('` + h + `', '` + dayParsedString + `', '` + rewardString + `')`
-
+						query := `INSERT INTO rewards_by_day_temp (address, date, amount)
+						SELECT '` + h + `', '` + dayParsedString + `', ` + rewardString + `
+						WHERE NOT EXISTS (
+						SELECT 1 FROM rewards_by_day_temp WHERE address='` + h + `' AND date='` + dayParsedString + `' AND amount=` + rewardString + `);`
 						_, err := database.DB.Exec(query)
 						if err != nil {
 							log.Printf("[ERROR] error when inserting daily rewards: %v", err)
@@ -205,4 +207,150 @@ func getYesterdayRewards(hash string) (string, string) {
 	dayString := fmt.Sprintf("%v", beginningOfDayTimestamp)
 	rewards := fmt.Sprintf("%v", amount.Int64)
 	return dayString, rewards
+}
+
+func getHotspotRewardsForDate(hash string, date int) int {
+
+	// Get beginning of the day timestamp
+	unixDate := time.Unix(int64(date), 0)
+	year, month, day := unixDate.Date()
+	beginningOfDayTimestamp := time.Date(year, month, day, 0, 0, 0, 0, time.UTC).Unix()
+	endOfDayTimestamp := time.Date(year, month, day, 23, 59, 59, 0, time.UTC).Unix()
+
+	var amount sql.NullInt64
+	row := database.DB.QueryRow("SELECT sum(amount) FROM rewards WHERE gateway = $1 AND time >= $2 AND time <= $3", hash, beginningOfDayTimestamp, endOfDayTimestamp)
+	err := row.Scan(&amount)
+
+	if err != nil {
+		log.Printf("[ERROR]d error: %v ", err)
+	}
+
+	return int(amount.Int64)
+}
+
+func fillMissingDailyRewards() {
+
+	hotspots := getAllHotspots()
+	// totalHotspots := len(hotspots)
+	// currentHotspot := 0
+
+	year, month, day := time.Now().Date()
+	yesterday := time.Date(year, month, day-1, 0, 0, 0, 0, time.UTC).Unix()
+
+	for hotspot := range hotspots {
+
+		log.Println("===========================")
+		log.Printf("[%v] PARSING NEW HOTSPOT", hotspot)
+
+		// Get hotspot total rewards_by_day
+		totalRewardsByDay := getHostpotRewardsByDay(hotspot)
+
+		// Sort data
+		sort.Ints(totalRewardsByDay)
+
+		firstDay := totalRewardsByDay[0]
+		lastDay := int(yesterday)
+
+		daysCalculated := calculateDaysBetweenTwoDates(firstDay, lastDay)
+
+		missingDaysCount := daysCalculated - len(totalRewardsByDay)
+
+		dateList := getAllDatesBetweenTwoDays(firstDay, lastDay)
+
+		missingDays := slideDifference(totalRewardsByDay, dateList)
+
+		log.Printf("[%v] Cached: %v, Total: %v, Missing: %v", hotspot, len(totalRewardsByDay), daysCalculated, missingDaysCount)
+
+		for _, day := range missingDays {
+			rewardsForDay := getHotspotRewardsForDate(hotspot, day)
+			log.Printf("[%v] Missing Day %v - Rewards %v ", hotspot, day, rewardsForDay)
+
+			UpsertHotspotReward(hotspot, day, rewardsForDay)
+		}
+
+		time.Sleep(time.Second * 1)
+
+	}
+}
+
+func UpsertHotspotReward(hash string, time int, amount int) {
+
+	query := fmt.Sprintf("INSERT INTO rewards_by_day (address, date, amount) VALUES ('%v', '%v', '%v') ON CONFLICT (address, date) DO UPDATE SET amount = '%v'", hash, time, amount, amount)
+	_, err := database.DB.Exec(query)
+	if err != nil {
+		log.Printf("[ERROR] adding new validator geodata: %v", err)
+	}
+
+}
+
+// Get a list of all the dates where this hotspot has rewards_by_day cached
+func getHostpotRewardsByDay(hash string) []int {
+
+	days := []int{}
+
+	rows, err := database.DB.Query("SELECT date FROM rewards_by_day WHERE address = $1 ORDER BY date", hash)
+	if err != nil {
+		log.Printf("[ERROR] %v", err)
+	}
+
+	defer rows.Close()
+
+	var date sql.NullInt64
+
+	for rows.Next() {
+
+		err := rows.Scan(&date)
+		if err != nil {
+			log.Printf("[ERROR] getHostpotRewardsByDay(): %v", err)
+		}
+
+		if date.Valid {
+			days = append(days, int(date.Int64))
+		}
+	}
+	rows.Close()
+
+	return days
+}
+
+func calculateDaysBetweenTwoDates(start, end int) int {
+	startTime := time.Unix(int64(start), 0)
+	endTime := time.Unix(int64(end), 0)
+
+	return int(endTime.Sub(startTime).Hours()/24) + 1
+}
+
+func getAllDatesBetweenTwoDays(start, end int) []int {
+
+	dates := []int{}
+
+	startTime := time.Unix(int64(start), 0)
+	endTime := time.Unix(int64(end), 0)
+
+	for t := startTime; t.Unix() <= endTime.Unix(); t = t.AddDate(0, 0, 1) {
+		dates = append(dates, int(t.Unix()))
+	}
+
+	return dates
+}
+
+func slideDifference(a, b []int) []int {
+
+	type void struct{}
+
+	// create map with length of the 'a' slice
+	ma := make(map[int]void, len(a))
+	diffs := []int{}
+
+	// Convert first slice to map with empty struct (0 bytes)
+	for _, ka := range a {
+		ma[ka] = void{}
+	}
+	// find missing values in a
+	for _, kb := range b {
+		if _, ok := ma[kb]; !ok {
+			diffs = append(diffs, kb)
+		}
+	}
+	return diffs
 }

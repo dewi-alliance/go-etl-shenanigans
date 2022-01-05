@@ -31,7 +31,7 @@ func Start() {
 	}
 
 	// Slowly pulls geo data from helium api and inserts into the database
-	// go updateGetLocations() // Removed by adding the Google API KEY
+
 	go updateValidatorGeoData()
 	go updateMakersData()
 
@@ -44,7 +44,13 @@ func runScheduler(c *cron.Cron) {
 
 	// Run yesterday job every day at midnight
 	_, err := scheduleCron.AddFunc("0 0 * * *", func() {
+
+		// Build yesterday cache for hotspots
 		buildYesterdayCache()
+
+		// Fill missing hotspots date
+		fillMissingDailyRewards()
+
 	})
 
 	if err != nil {
