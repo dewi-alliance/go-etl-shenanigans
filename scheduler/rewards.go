@@ -231,16 +231,18 @@ func getHotspotRewardsForDate(hash string, date int) int {
 func fillMissingDailyRewards() {
 
 	hotspots := getAllHotspots()
-	// totalHotspots := len(hotspots)
-	// currentHotspot := 0
+	totalHotspots := len(hotspots)
+	currentHotspot := 0
 
 	year, month, day := time.Now().Date()
 	yesterday := time.Date(year, month, day-1, 0, 0, 0, 0, time.UTC).Unix()
 
 	for hotspot := range hotspots {
 
+		currentHotspot++
+
 		log.Println("===========================")
-		log.Printf("[%v] PARSING NEW HOTSPOT", hotspot)
+		log.Printf("(%v/%v)[%v] PARSING NEW HOTSPOT", currentHotspot, totalHotspots, hotspot)
 
 		// Get hotspot total rewards_by_day
 		totalRewardsByDay := getHostpotRewardsByDay(hotspot)
@@ -248,28 +250,28 @@ func fillMissingDailyRewards() {
 		// Sort data
 		sort.Ints(totalRewardsByDay)
 
-		firstDay := totalRewardsByDay[0]
-		lastDay := int(yesterday)
+		if len(totalRewardsByDay) > 0 {
 
-		daysCalculated := calculateDaysBetweenTwoDates(firstDay, lastDay)
+			firstDay := totalRewardsByDay[0]
+			lastDay := int(yesterday)
 
-		missingDaysCount := daysCalculated - len(totalRewardsByDay)
+			daysCalculated := calculateDaysBetweenTwoDates(firstDay, lastDay)
 
-		dateList := getAllDatesBetweenTwoDays(firstDay, lastDay)
+			missingDaysCount := daysCalculated - len(totalRewardsByDay)
 
-		missingDays := slideDifference(totalRewardsByDay, dateList)
+			dateList := getAllDatesBetweenTwoDays(firstDay, lastDay)
 
-		log.Printf("[%v] Cached: %v, Total: %v, Missing: %v", hotspot, len(totalRewardsByDay), daysCalculated, missingDaysCount)
+			missingDays := slideDifference(totalRewardsByDay, dateList)
 
-		for _, day := range missingDays {
-			rewardsForDay := getHotspotRewardsForDate(hotspot, day)
-			log.Printf("[%v] Missing Day %v - Rewards %v ", hotspot, day, rewardsForDay)
+			log.Printf("(%v/%v)[%v] Cached: %v, Total: %v, Missing: %v", currentHotspot, totalHotspots, hotspot, len(totalRewardsByDay), daysCalculated, missingDaysCount)
 
-			UpsertHotspotReward(hotspot, day, rewardsForDay)
+			for _, day := range missingDays {
+				rewardsForDay := getHotspotRewardsForDate(hotspot, day)
+				log.Printf("(%v/%v)[%v] Missing Day %v - Rewards %v ", currentHotspot, totalHotspots, hotspot, day, rewardsForDay)
+
+				UpsertHotspotReward(hotspot, day, rewardsForDay)
+			}
 		}
-
-		time.Sleep(time.Second * 1)
-
 	}
 }
 

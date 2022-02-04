@@ -30,6 +30,11 @@ func Start() {
 		go buildRewardCache()
 	}
 
+	if *DEV == true {
+		buildYesterdayCache()
+		fillMissingDailyRewards()
+	}
+
 	// Slowly pulls geo data from helium api and inserts into the database
 
 	go updateValidatorGeoData()
